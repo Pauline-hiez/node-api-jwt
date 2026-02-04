@@ -1,0 +1,124 @@
+import express from "express";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import "dotenv/config";
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Clé secrète pour signer les tokens JWT
+const SECRET_KEY = "ma_cle_secrete_super_longue_123";
+
+// "Base de données" en mémoire
+const users = [];
+
+// Middleware pour parser le JSON
+app.use(express.json());
+
+// ========================
+// POST /api/register
+// ========================
+app.post("/api/register", async (req, res) => {
+    const { email, password } = req.body;
+
+    // Vérifier que les champs sont remplis
+    if (!email || !password) {
+        return res.status(400).json({ message: "Email et mot de passe requis" });
+    }
+
+    // Vérifier si l'utilisateur existe déjà
+    const existingUser = users.find((u) => u.email === email);
+    if (existingUser) {
+        return res.status(409).json({ message: "Cet email est déjà utilisé" });
+    }
+
+    // Hasher le mot de passe avec bcrypt
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Stocker l'utilisateur
+    const newUser = { id: users.length + 1, email, password: hashedPassword };
+    users.push(newUser);
+
+    res.status(201).json({ message: "Utilisateur créé", user: { id: newUser.id, email: newUser.email } });
+});
+
+// ========================
+// POST /api/login
+// ========================
+app.post("/api/login", async (req, res) => {
+    const { email, password } = req.body;
+
+    // Chercher l'utilisateur
+    const user = users.find((u) => u.email === email);
+    if (!user) {
+        return res.status(401).json({ message: "Email ou mot de passe incorrect" });
+    }
+
+    // Comparer le mot de passe avec le hash
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+        return res.status(401).json({ message: "Email ou mot de passe incorrect" });
+    }
+
+    // ==============================
+    // jwt.sign(payload, secretKey, options)
+    // Crée un token JWT signé
+    // ==============================
+    const token = jwt.sign(
+        { id: user.id, email: user.email },  // payload (données dans le token)
+        SECRET_KEY,                            // clé secrète pour signer
+        { expiresIn: "1h" }                    // options : expire dans 1 heure
+    );
+
+    res.json({ message: "Connexion réussie", token });
+});
+
+// ========================
+// Middleware d'authentification
+// ========================
+function authenticateToken(req, res, next) {
+    // Récupérer le header Authorization: "Bearer <token>"
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(" ")[1];
+
+    if (!token) {
+        return res.status(401).json({ message: "Token manquant" });
+    }
+
+    // ==============================
+    // jwt.verify(token, secretKey, callback)
+    // Vérifie et décode le token
+    // ==============================
+    jwt.verify(token, SECRET_KEY, (err, decoded) => {
+        if (err) {
+            return res.status(403).json({ message: "Token invalide ou expiré" });
+        }
+
+        // Le payload décodé est disponible dans decoded
+        req.user = decoded;
+        next();
+    });
+}
+
+// ========================
+// GET /api/protected (route protégée)
+// ========================
+app.get("/api/protected", authenticateToken, (req, res) => {
+    res.json({
+        message: "Bienvenue sur la route protégée !",
+        user: req.user,
+    });
+});
+
+// ========================
+// GET /api/protected (route non protégée)
+// ========================
+app.get("/api/not-protected", (req, res) => {
+    res.json({
+        message: "Bienvenue sur la route non protégée !"
+    });
+});
+
+app.listen(PORT, () => {
+    console.log(`Serveur démarré : http://localhost:${PORT}`);
+});

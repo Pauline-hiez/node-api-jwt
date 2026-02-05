@@ -77,7 +77,11 @@ app.post("/api/login", async (req, res) => {
         { expiresIn: "1h" }                    // options : expire dans 1 heure
     );
 
-    res.json({ message: "Connexion réussie", token });
+    res.json({
+        message: "Connexion réussie",
+        token,
+        user: { id: user.id, email: user.email }  // Ajouter l'objet user
+    });
 });
 
 // ========================

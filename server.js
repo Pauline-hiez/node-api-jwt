@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
+import cors from "cors";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -14,6 +15,12 @@ const users = [];
 
 // Middleware pour parser le JSON
 app.use(express.json());
+
+app.use(cors());
+
+app.get('/', (req, res) => {
+    res.send('<h1>Bienvenue sur l\'API<h1>');
+});
 
 // ========================
 // POST /api/register
@@ -74,7 +81,7 @@ app.post("/api/login", async (req, res) => {
 });
 
 // ========================
-// Middleware d'authentification
+// Middleware d'autorisation
 // ========================
 function authenticateToken(req, res, next) {
     // Récupérer le header Authorization: "Bearer <token>"
